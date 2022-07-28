@@ -54,4 +54,4 @@ query whoami {
 ```
 
 - result
-![result]()
+![result](https://raw.githubusercontent.com/ngoctd314/gql-stepbystep/1-introduction/whoami.png)
