@@ -5,27 +5,22 @@ package graph
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/ngoctd314/gql-stepbystep/graph/generated"
 	"github.com/ngoctd314/gql-stepbystep/graph/model"
 )
 
-// CreateTodo is the resolver for the createTodo field.
-func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) (*model.Todo, error) {
-	panic(fmt.Errorf("not implemented"))
-}
+// Whoami is the resolver for the whoami field.
+func (r *queryResolver) Whoami(ctx context.Context) (*model.Me, error) {
+	me := &model.Me{
+		ID:   "1",
+		Name: "Gophers",
+	}
 
-// Todos is the resolver for the todos field.
-func (r *queryResolver) Todos(ctx context.Context) ([]*model.Todo, error) {
-	panic(fmt.Errorf("not implemented"))
+	return me, nil
 }
-
-// Mutation returns generated.MutationResolver implementation.
-func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
 
 // Query returns generated.QueryResolver implementation.
 func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
-type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
