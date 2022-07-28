@@ -35,6 +35,7 @@ type Config struct {
 }
 
 type ResolverRoot interface {
+	Mutation() MutationResolver
 	Query() QueryResolver
 }
 
@@ -42,18 +43,25 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
-	Me struct {
+	Character struct {
 		ID   func(childComplexity int) int
 		Name func(childComplexity int) int
 	}
 
+	Mutation struct {
+		CreateHero func(childComplexity int, hero model.NewHero) int
+	}
+
 	Query struct {
-		Whoami func(childComplexity int) int
+		Hero func(childComplexity int, id string) int
 	}
 }
 
+type MutationResolver interface {
+	CreateHero(ctx context.Context, hero model.NewHero) (*model.Character, error)
+}
 type QueryResolver interface {
-	Whoami(ctx context.Context) (*model.Me, error)
+	Hero(ctx context.Context, id string) (*model.Character, error)
 }
 
 type executableSchema struct {
@@ -71,26 +79,43 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 	_ = ec
 	switch typeName + "." + field {
 
-	case "Me.id":
-		if e.complexity.Me.ID == nil {
+	case "Character.id":
+		if e.complexity.Character.ID == nil {
 			break
 		}
 
-		return e.complexity.Me.ID(childComplexity), true
+		return e.complexity.Character.ID(childComplexity), true
 
-	case "Me.name":
-		if e.complexity.Me.Name == nil {
+	case "Character.name":
+		if e.complexity.Character.Name == nil {
 			break
 		}
 
-		return e.complexity.Me.Name(childComplexity), true
+		return e.complexity.Character.Name(childComplexity), true
 
-	case "Query.whoami":
-		if e.complexity.Query.Whoami == nil {
+	case "Mutation.createHero":
+		if e.complexity.Mutation.CreateHero == nil {
 			break
 		}
 
-		return e.complexity.Query.Whoami(childComplexity), true
+		args, err := ec.field_Mutation_createHero_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.CreateHero(childComplexity, args["hero"].(model.NewHero)), true
+
+	case "Query.hero":
+		if e.complexity.Query.Hero == nil {
+			break
+		}
+
+		args, err := ec.field_Query_hero_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Hero(childComplexity, args["id"].(string)), true
 
 	}
 	return 0, false
@@ -99,7 +124,9 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	rc := graphql.GetOperationContext(ctx)
 	ec := executionContext{rc, e}
-	inputUnmarshalMap := graphql.BuildUnmarshalerMap()
+	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputnewHero,
+	)
 	first := true
 
 	switch rc.Operation.Operation {
@@ -111,6 +138,21 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			first = false
 			ctx = graphql.WithUnmarshalerMap(ctx, inputUnmarshalMap)
 			data := ec._Query(ctx, rc.Operation.SelectionSet)
+			var buf bytes.Buffer
+			data.MarshalGQL(&buf)
+
+			return &graphql.Response{
+				Data: buf.Bytes(),
+			}
+		}
+	case ast.Mutation:
+		return func(ctx context.Context) *graphql.Response {
+			if !first {
+				return nil
+			}
+			first = false
+			ctx = graphql.WithUnmarshalerMap(ctx, inputUnmarshalMap)
+			data := ec._Mutation(ctx, rc.Operation.SelectionSet)
 			var buf bytes.Buffer
 			data.MarshalGQL(&buf)
 
@@ -144,13 +186,22 @@ func (ec *executionContext) introspectType(name string) (*introspection.Type, er
 }
 
 var sources = []*ast.Source{
-	{Name: "../schema.graphqls", Input: `type Me {
+	{Name: "../schema.graphqls", Input: `type Character {
 	id: ID!
 	name: String!
 }
 
 type Query {
-	whoami: Me
+	hero(id: ID!): Character
+}
+
+input newHero {
+	id: ID!
+	name: String!
+}
+
+type Mutation {
+	createHero(hero: newHero!): Character
 }
 `, BuiltIn: false},
 }
@@ -159,6 +210,21 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 // endregion ************************** generated!.gotpl **************************
 
 // region    ***************************** args.gotpl *****************************
+
+func (ec *executionContext) field_Mutation_createHero_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 model.NewHero
+	if tmp, ok := rawArgs["hero"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("hero"))
+		arg0, err = ec.unmarshalNnewHero2githubᚗcomᚋngoctd314ᚋgqlᚑstepbystepᚋgraphᚋmodelᚐNewHero(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["hero"] = arg0
+	return args, nil
+}
 
 func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
@@ -172,6 +238,21 @@ func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs
 		}
 	}
 	args["name"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_hero_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 string
+	if tmp, ok := rawArgs["id"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+		arg0, err = ec.unmarshalNID2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -213,8 +294,8 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 
 // region    **************************** field.gotpl *****************************
 
-func (ec *executionContext) _Me_id(ctx context.Context, field graphql.CollectedField, obj *model.Me) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Me_id(ctx, field)
+func (ec *executionContext) _Character_id(ctx context.Context, field graphql.CollectedField, obj *model.Character) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Character_id(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -244,9 +325,9 @@ func (ec *executionContext) _Me_id(ctx context.Context, field graphql.CollectedF
 	return ec.marshalNID2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Me_id(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Character_id(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "Me",
+		Object:     "Character",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -257,8 +338,8 @@ func (ec *executionContext) fieldContext_Me_id(ctx context.Context, field graphq
 	return fc, nil
 }
 
-func (ec *executionContext) _Me_name(ctx context.Context, field graphql.CollectedField, obj *model.Me) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Me_name(ctx, field)
+func (ec *executionContext) _Character_name(ctx context.Context, field graphql.CollectedField, obj *model.Character) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Character_name(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -288,9 +369,9 @@ func (ec *executionContext) _Me_name(ctx context.Context, field graphql.Collecte
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Me_name(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Character_name(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "Me",
+		Object:     "Character",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -301,8 +382,8 @@ func (ec *executionContext) fieldContext_Me_name(ctx context.Context, field grap
 	return fc, nil
 }
 
-func (ec *executionContext) _Query_whoami(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_whoami(ctx, field)
+func (ec *executionContext) _Mutation_createHero(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_createHero(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -315,7 +396,7 @@ func (ec *executionContext) _Query_whoami(ctx context.Context, field graphql.Col
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Whoami(rctx)
+		return ec.resolvers.Mutation().CreateHero(rctx, fc.Args["hero"].(model.NewHero))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -324,12 +405,70 @@ func (ec *executionContext) _Query_whoami(ctx context.Context, field graphql.Col
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(*model.Me)
+	res := resTmp.(*model.Character)
 	fc.Result = res
-	return ec.marshalOMe2ᚖgithubᚗcomᚋngoctd314ᚋgqlᚑstepbystepᚋgraphᚋmodelᚐMe(ctx, field.Selections, res)
+	return ec.marshalOCharacter2ᚖgithubᚗcomᚋngoctd314ᚋgqlᚑstepbystepᚋgraphᚋmodelᚐCharacter(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Query_whoami(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Mutation_createHero(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Character_id(ctx, field)
+			case "name":
+				return ec.fieldContext_Character_name(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Character", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createHero_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_hero(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_hero(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().Hero(rctx, fc.Args["id"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.Character)
+	fc.Result = res
+	return ec.marshalOCharacter2ᚖgithubᚗcomᚋngoctd314ᚋgqlᚑstepbystepᚋgraphᚋmodelᚐCharacter(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_hero(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -338,12 +477,23 @@ func (ec *executionContext) fieldContext_Query_whoami(ctx context.Context, field
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
 			case "id":
-				return ec.fieldContext_Me_id(ctx, field)
+				return ec.fieldContext_Character_id(ctx, field)
 			case "name":
-				return ec.fieldContext_Me_name(ctx, field)
+				return ec.fieldContext_Character_name(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type Me", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type Character", field.Name)
 		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_hero_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return
 	}
 	return fc, nil
 }
@@ -2250,6 +2400,42 @@ func (ec *executionContext) fieldContext___Type_specifiedByURL(ctx context.Conte
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputnewHero(ctx context.Context, obj interface{}) (model.NewHero, error) {
+	var it model.NewHero
+	asMap := map[string]interface{}{}
+	for k, v := range obj.(map[string]interface{}) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "name"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			it.ID, err = ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "name":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			it.Name, err = ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		}
+	}
+
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -2258,30 +2444,66 @@ func (ec *executionContext) fieldContext___Type_specifiedByURL(ctx context.Conte
 
 // region    **************************** object.gotpl ****************************
 
-var meImplementors = []string{"Me"}
+var characterImplementors = []string{"Character"}
 
-func (ec *executionContext) _Me(ctx context.Context, sel ast.SelectionSet, obj *model.Me) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, meImplementors)
+func (ec *executionContext) _Character(ctx context.Context, sel ast.SelectionSet, obj *model.Character) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, characterImplementors)
 	out := graphql.NewFieldSet(fields)
 	var invalids uint32
 	for i, field := range fields {
 		switch field.Name {
 		case "__typename":
-			out.Values[i] = graphql.MarshalString("Me")
+			out.Values[i] = graphql.MarshalString("Character")
 		case "id":
 
-			out.Values[i] = ec._Me_id(ctx, field, obj)
+			out.Values[i] = ec._Character_id(ctx, field, obj)
 
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
 		case "name":
 
-			out.Values[i] = ec._Me_name(ctx, field, obj)
+			out.Values[i] = ec._Character_name(ctx, field, obj)
 
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var mutationImplementors = []string{"Mutation"}
+
+func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mutationImplementors)
+	ctx = graphql.WithFieldContext(ctx, &graphql.FieldContext{
+		Object: "Mutation",
+	})
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		innerCtx := graphql.WithRootFieldContext(ctx, &graphql.RootFieldContext{
+			Object: field.Name,
+			Field:  field,
+		})
+
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Mutation")
+		case "createHero":
+
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createHero(ctx, field)
+			})
+
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -2312,7 +2534,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Query")
-		case "whoami":
+		case "hero":
 			field := field
 
 			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
@@ -2321,7 +2543,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
-				res = ec._Query_whoami(ctx, field)
+				res = ec._Query_hero(ctx, field)
 				return res
 			}
 
@@ -2971,6 +3193,11 @@ func (ec *executionContext) marshalN__TypeKind2string(ctx context.Context, sel a
 	return res
 }
 
+func (ec *executionContext) unmarshalNnewHero2githubᚗcomᚋngoctd314ᚋgqlᚑstepbystepᚋgraphᚋmodelᚐNewHero(ctx context.Context, v interface{}) (model.NewHero, error) {
+	res, err := ec.unmarshalInputnewHero(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalOBoolean2bool(ctx context.Context, v interface{}) (bool, error) {
 	res, err := graphql.UnmarshalBoolean(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -2997,11 +3224,11 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
-func (ec *executionContext) marshalOMe2ᚖgithubᚗcomᚋngoctd314ᚋgqlᚑstepbystepᚋgraphᚋmodelᚐMe(ctx context.Context, sel ast.SelectionSet, v *model.Me) graphql.Marshaler {
+func (ec *executionContext) marshalOCharacter2ᚖgithubᚗcomᚋngoctd314ᚋgqlᚑstepbystepᚋgraphᚋmodelᚐCharacter(ctx context.Context, sel ast.SelectionSet, v *model.Character) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
-	return ec._Me(ctx, sel, v)
+	return ec._Character(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOString2ᚖstring(ctx context.Context, v interface{}) (*string, error) {

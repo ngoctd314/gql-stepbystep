@@ -1,8 +1,17 @@
-type Me {
+type Character {
 	id: ID!
 	name: String!
 }
 
 type Query {
-	whoami: Me
+	hero(id: ID!): Character
+}
+
+input newHero {
+	id: ID!
+	name: String!
+}
+
+type Mutation {
+	createHero(hero: newHero!): Character
 }
