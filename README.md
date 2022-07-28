@@ -86,4 +86,4 @@ func main() {
 
 - run: go run server.go
 
-![result]()
+![result](https://raw.githubusercontent.com/ngoctd314/gql-stepbystep/2-Querys-and-Mutations/hero.png)
