@@ -44,11 +44,11 @@ func (r *queryResolver) Whoami(ctx context.Context) (*model.Me, error) {
 
 - insert
 
-```gql
+```graphql
 query whoami {
   whoami {
     id
-		name    
+	name    
   }
 }
 ```
