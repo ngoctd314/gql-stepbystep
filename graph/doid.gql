@@ -1,0 +1,8 @@
+type Droid implements Character {
+	id: ID!
+	name: String!
+	friends: [Character!]
+	# friendsConnection(first: Int, after: ID): FriendsConnection!
+	appearsIn: [Episode!]!
+	primaryFunction: String
+}

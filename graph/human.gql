@@ -1,0 +1,11 @@
+type Human implements Character {
+	id: ID!
+	name: String!
+	friends: [Character!]
+	# friendsConnection(first: Int, after: ID): FriendsConnection!
+	appearsIn: [Episode!]!
+
+	height(unit: LengthUnit = Meter): Float!
+	mass: Float
+	starships: [Starship!]
+}
